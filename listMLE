@@ -1,0 +1,54 @@
+
+Loss(Plackett Luce Model)
+
+1. 主要思想
+The Plackett-Luce model was first proposed by Plackett to predict the ranks of horses in gambling. Consider a
+horse racing game with five horses. Suppose a probability distribution P on their abilities to win a race, then a rank of
+these horses can be understood as a generative procedure. Suppose we want to know the probability of a top3 rank
+2, 3, 5. The result can be computed as follows :
+Being the champion for the 2nd horse, the probability is p2 among five candidates. Being the runner-up for the 3rd
+horse, the probability p3 has to be normalized among the remaining four horses, which leads to p3/(p1 + p3 + p4 + p5).
+Being the third winner for the 5th horse, its probability among the remaining three horses becomes p5/(p1 + p4 + p5).
+So the probability of the rank 2, 3, 5 is their product. It is not difficult to see that the most likely rank is all horses are
+ranked by their winning probability in a descending order.
+The key idea for the Plackett-Luce model is the choice in the ith position in a rank π only depends on the candidates not
+chosen at previous positions.
+
+2. 参数估计
+解决参数估计的最主要方式有两种，一种是MLE最大似然估计，另一种是贝叶斯
+
+3. 公式推导(MLE)
+          click1    expose1   expose2   outcate1    outcate2
+score     sc1       se1       se2        so1        so2
+
+p = sc1/(sc1+se1+se2+so1+so2)*se1/(se1+so1+so2)*se2/(se2+so1+so2)*so1/so1*so2/so2
+p = exp(sc1)/(exp(sc1)+exp(se1)+exp(se2)+exp(so1)+exp(so2)) *
+    exp(se1)/(exp(se1)+exp(so1)+exp(so2)) *
+    exp(se2)/(exp(so1)+exp(so2)) *
+    exp(so1)/exp(so1) *
+    exp(so2)/exp(so2)
+-loss = ln(p) = sc1+se2+se2+so1+so2-log(exp(sc1)+exp(se1)+exp(se2)+exp(so1)+exp(so2))
+                           -log(exp(se1)+exp(so1)+exp(so2))
+                           -log(exp(se2)+exp(so1)+exp(so2))
+                           -log(exp(so1)
+                           -log(exp(so2)
+
+4. tf代码实现
+def loss_MLE(output, batch_size):
+  output = tf.nn.l2_normalize(output,1)
+  loss = -1*tf.reduce_sum(output,1)
+  exp_output = tf.exp(output)
+  exp_output_table = tf.reshape(exp_output, [-1])
+  batch_bias = tf.constant([i*13 for i in range(batch_size)])
+  for id in range(13):#click1, expose6, outcate6
+    batch_ids = tf.constant([id]*batch_size) + batch_bias
+    exps = tf.nn.embedding_lookup(exp_output_table, batch_ids)
+    if id == 0:
+      sum_exp_tmp = tf.reduce_sum(exp_output, 1)
+    if id in range(1,7):
+      sum_exp_emp = exps + tf.reduce_sum(exp_output[:,7:13])
+    if id in range(7:13):
+      sum_exp_tmp = exps
+    loss = tf.add(loss, tf.log(sum_exp_tmp))
+return tf.reduce_sum(loss)/tf.cast(batch_size, tf.float32)
+      
